@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSE Demo</title>
+</head>
+<body>
+  <input id="figmaInput" placeholder="Enter Figma URL" style="width: 80%;" />
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const es = new EventSource('http://localhost:3333/sse');
+    let endpoint = '';
+    es.onmessage = function (event) {
+      console.log(event.data);
+      if (!endpoint) {
+        try {
+          const data = JSON.parse(event.data);
+          endpoint = data.endpoint || event.data;
+        } catch (e) {
+          endpoint = event.data;
+        }
+      }
+    };
+
+    const input = document.getElementById('figmaInput');
+    input.addEventListener('change', async function () {
+      const value = input.value.trim();
+      if (!value) return;
+      let fileKey = '';
+      let nodeId = '';
+      try {
+        const url = new URL(value);
+        const parts = url.pathname.split('/');
+        const i = parts.indexOf('file');
+        if (i !== -1 && parts.length > i + 1) {
+          fileKey = parts[i + 1];
+        }
+        nodeId = url.searchParams.get('node-id') || '';
+      } catch (e) {
+        console.error('Invalid URL');
+        return;
+      }
+      if (!endpoint) {
+        console.error('No session endpoint received yet');
+        return;
+      }
+      const body = {
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        id: 1,
+        params: {
+          name: 'get_figma_data',
+          arguments: {
+            fileKey,
+            nodeId,
+          },
+        },
+      };
+      try {
+        const res = await fetch(`http://localhost:3333${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        console.log('API response:', text);
+      } catch (err) {
+        console.error('Request failed', err);
+      }
+    });
+  });
+  </script>
+</body>
+</html>
